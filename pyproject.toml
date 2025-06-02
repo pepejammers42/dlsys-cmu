@@ -1,0 +1,18 @@
+[project]
+name = "homework"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "google>=3.0.0",
+    "ipykernel>=6.29.5",
+    "mugrade",
+    "numdifftools>=0.9.41",
+    "numpy>=2.2.5",
+    "pybind11>=2.13.6",
+    "pytest>=8.3.5",
+]
+
+[tool.uv.sources]
+mugrade = { git = "https://github.com/dlsyscourse/mugrade.git" }
