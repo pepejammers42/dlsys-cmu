@@ -24,9 +24,19 @@ class SGD(Optimizer):
         self.weight_decay = weight_decay
 
     def step(self):
-        ### BEGIN YOUR SOLUTION
-        raise NotImplementedError()
-        ### END YOUR SOLUTION
+        for param in self.params:
+            if self.weight_decay > 0:
+                # so this becomes grad of f(theta_t) + weight_decay * theta_t
+                grad_update = param.grad.data + self.weight_decay * param.data
+            else:
+                grad_update = param.grad.data
+            # u_t doesn't exist initially is just 0
+            if param in self.u:
+                self.u[param] = self.momentum * self.u[param] + (1-self.momentum) * grad_update
+            else:
+                self.u[param] = (1-self.momentum) * grad_update
+            param.data = param.data - self.lr * self.u[param]
+        
 
     def clip_grad_norm(self, max_norm=0.25):
         """
@@ -55,10 +65,24 @@ class Adam(Optimizer):
         self.weight_decay = weight_decay
         self.t = 0
 
-        self.m = {}
+        self.u = {}
         self.v = {}
 
     def step(self):
-        ### BEGIN YOUR SOLUTION
-        raise NotImplementedError()
-        ### END YOUR SOLUTION
+        self.t += 1
+        for param in self.params:
+            if self.weight_decay > 0:
+                grad_new = param.grad.data + self.weight_decay * param.data
+            else:
+                grad_new = param.grad.data
+            if param in self.u:
+                self.u[param] = self.beta1 * self.u[param] + (1-self.beta1) * grad_new
+            else:
+                self.u[param] = (1-self.beta1) * grad_new
+            if param in self.v:
+                self.v[param] = self.beta2 * self.v[param] + (1-self.beta2) * (grad_new ** 2)
+            else:
+                self.v[param] = (1-self.beta2) * (grad_new ** 2)
+            corrected_u = self.u[param] / (1- self.beta1 ** self.t)
+            corrected_v = self.v[param] / (1-self.beta2 ** self.t)
+            param.data = param.data - self.lr * corrected_u / (corrected_v ** 0.5 + self.eps)

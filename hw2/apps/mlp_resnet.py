@@ -1,11 +1,9 @@
 import sys
 
-sys.path.append("../python")
 import needle as ndl
 import needle.nn as nn
 import numpy as np
 import time
-import os
 
 np.random.seed(0)
 # MY_DEVICE = ndl.backend_selection.cuda()
