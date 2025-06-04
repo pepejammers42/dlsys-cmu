@@ -187,7 +187,7 @@ class Dropout(Module):
     def forward(self, x: Tensor) -> Tensor:
         if self.training:
             # binary mask
-            dist = init.randb(*x.shape, p=self.p)
+            dist = init.randb(*x.shape, p=1-self.p)
             return x * dist / (1-self.p)
         else:
             return x

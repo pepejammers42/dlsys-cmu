@@ -1490,6 +1490,18 @@ def test_nn_dropout_backward_1():
         atol=1e-5,
     )
 
+def test_nn_dropout_keep_prob():
+    np.random.seed(0)
+    x = get_tensor(1000, 10)
+    prob = 0.25
+    f = nn.Dropout(prob)
+    y = f(x)
+    dropped_ratio = np.mean(y.cached_data == 0)
+    np.testing.assert_allclose(dropped_ratio, prob, rtol=0.05, atol=0.05)
+    np.testing.assert_allclose(
+        y.cached_data.mean(), x.cached_data.mean(), rtol=0.05, atol=0.05
+    )
+
 
 def submit_nn_dropout():
     mugrade.submit(dropout_forward((3, 3), prob=0.4))
