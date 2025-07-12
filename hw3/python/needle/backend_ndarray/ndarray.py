@@ -243,12 +243,14 @@ class NDArray:
             new_shape (tuple): new shape of the array
 
         Returns:
-            NDArray : reshaped array; this will point to thep
+            NDArray : reshaped array; this will point to the same memory as the original NDArray.
         """
+        if prod(self._shape) != prod(new_shape):
+            raise ValueError("Product shape mismatch")
+        if not self.is_compact():
+            raise ValueError("Matrix is not compact")
+        return NDArray.make(new_shape, NDArray.compact_strides(new_shape), self._device, self._handle)
 
-        ### BEGIN YOUR SOLUTION
-        raise NotImplementedError()
-        ### END YOUR SOLUTION
 
     def permute(self, new_axes):
         """
@@ -270,10 +272,10 @@ class NDArray:
             to the same memory as the original NDArray (i.e., just shape and
             strides changed).
         """
+        new_shape = tuple(np.array(self._shape)[list(new_axes)])
+        new_strides = tuple(np.array(self._strides)[list(new_axes)]) 
+        return NDArray.make(new_shape, new_strides, self._device, self._handle)
 
-        ### BEGIN YOUR SOLUTION
-        raise NotImplementedError()
-        ### END YOUR SOLUTION
 
     def broadcast_to(self, new_shape):
         """
@@ -294,10 +296,14 @@ class NDArray:
             NDArray: the new NDArray object with the new broadcast shape; should
             point to the same memory as the original array.
         """
-
-        ### BEGIN YOUR SOLUTION
-        raise NotImplementedError()
-        ### END YOUR SOLUTION
+        for x,y in zip(self._shape, new_shape):
+            if x != 1:
+                assert x == y
+        new_strides = list(self._strides)
+        for i in range(len(self._shape)):
+            if self._shape[i] != new_shape[i]:
+                new_strides[i] = 0
+        return NDArray.make(new_shape, tuple(new_strides), self._device, self._handle)
 
     ### Get and set elements
 
@@ -346,7 +352,7 @@ class NDArray:
 
         Returns:
             NDArray: a new NDArray object corresponding to the selected
-            subset of elements.  As before, this should not copy memroy but just
+            subset of elements.  As before, this should not copy memory but just
             manipulate the shape/strides/offset of the new array, referecing
             the same array as the original one.
         """
@@ -362,9 +368,12 @@ class NDArray:
         )
         assert len(idxs) == self.ndim, "Need indexes equal to number of dimensions"
 
-        ### BEGIN YOUR SOLUTION
-        raise NotImplementedError()
-        ### END YOUR SOLUTION
+        # edited: this needs to account for step which i forgot on init write you fool!
+        new_shape = [((s.stop - s.start + s.step - 1) // s.step) for s in idxs]
+        new_stride = [stride * s.step for stride, s in zip(self._strides, idxs)]
+        new_offset = np.sum([stride * s.start for stride, s in zip(self._strides, idxs)])
+        return NDArray.make(new_shape, tuple(new_stride), self._device, self._handle, new_offset)
+            
 
     def __setitem__(self, idxs, other):
         """Set the values of a view into an array, using the same semantics
