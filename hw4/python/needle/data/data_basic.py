@@ -59,13 +59,29 @@ class DataLoader:
                                            range(batch_size, len(dataset), batch_size))
 
     def __iter__(self):
-        ### BEGIN YOUR SOLUTION
-        raise NotImplementedError()
-        ### END YOUR SOLUTION
+        if self.shuffle:
+            self.ordering = np.array_split(np.random.permutation(len(self.dataset)),
+                                           range(self.batch_size, len(self.dataset), self.batch_size))
+        self.current = 0
         return self
 
     def __next__(self):
-        ### BEGIN YOUR SOLUTION
-        raise NotImplementedError()
-        ### END YOUR SOLUTION
-
+        if self.current >= len(self.ordering):
+            raise StopIteration
+        samples = [self.dataset[i] for i in self.ordering[self.current]]
+        self.current += 1
+        # dataset
+        # [(np.array([1, 2]), 3), (np.array([4, 5]), 6)]
+        #        ^            ^
+        #        |            |
+        #        feat(j=0)    label (j= 1)
+        # iterate both j's
+        # so get: [Tensor(array([[1, 2], [4, 5]])), Tensor(array([3, 6]))]
+        res = []
+        for j in range(len(samples[0])):
+            field_data = []
+            for i in range(len(samples)):
+                field_data.append(samples[i][j])
+            stacked_field = np.stack(field_data)
+            res.append(Tensor(stacked_field))
+        return res

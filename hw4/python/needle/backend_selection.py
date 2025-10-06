@@ -10,6 +10,7 @@ if BACKEND == "nd":
     from . import backend_ndarray as array_api
     from .backend_ndarray import (
         all_devices,
+        metal,
         cuda,
         cpu,
         cpu_numpy,

@@ -66,6 +66,15 @@ def cuda():
         return BackendDevice("cuda", None)
 
 
+def metal():
+    """return metal device"""
+    try:
+        from . import ndarray_backend_metal
+        return BackendDevice("metal", ndarray_backend_metal)
+    except ImportError:
+        return BackendDevice("metal", None)
+
+
 def cpu_numpy():
     """Return numpy device"""
     return BackendDevice("cpu_numpy", ndarray_backend_numpy)
@@ -82,7 +91,7 @@ def default_device():
 
 def all_devices():
     """return a list of all available devices"""
-    return [cpu(), cuda(), cpu_numpy()]
+    return [cpu(), cuda(), metal(), cpu_numpy()]
 
 
 class NDArray:
@@ -143,7 +152,7 @@ class NDArray:
         array._offset = offset
         array._device = device if device is not None else default_device()
         if handle is None:
-            array._handle = array.device.Array(prod(shape))
+            array._handle = array.device.Array(int(prod(shape)))
         else:
             array._handle = handle
         return array
@@ -246,9 +255,7 @@ class NDArray:
             NDArray : reshaped array; this will point to thep
         """
 
-        ### BEGIN YOUR SOLUTION
-        raise NotImplementedError()
-        ### END YOUR SOLUTION
+        return NDArray.make(new_shape, NDArray.compact_strides(new_shape), self._device, self._handle)
 
     def permute(self, new_axes):
         """
@@ -271,9 +278,9 @@ class NDArray:
             strides changed).
         """
 
-        ### BEGIN YOUR SOLUTION
-        raise NotImplementedError()
-        ### END YOUR SOLUTION
+        new_shape = tuple(np.array(self._shape)[list(new_axes)])
+        new_strides = tuple(np.array(self._strides)[list(new_axes)]) 
+        return NDArray.make(new_shape, new_strides, self._device, self._handle)
 
     def broadcast_to(self, new_shape):
         """
@@ -294,10 +301,26 @@ class NDArray:
             NDArray: the new NDArray object with the new broadcast shape; should
             point to the same memory as the original array.
         """
-
-        ### BEGIN YOUR SOLUTION
-        raise NotImplementedError()
-        ### END YOUR SOLUTION
+        # Support broadcasting by potentially adding leading dimensions.
+        # Align original shape/strides to the right; any expanded/inserted
+        # dimension uses stride 0. If a non-singleton dimension changes size,
+        # broadcasting is invalid.
+        assert len(new_shape) >= len(self._shape)
+        new_strides = [0] * len(new_shape)
+        orig_idx = len(self._shape) - 1
+        for i in range(len(new_shape) - 1, -1, -1):
+            if orig_idx >= 0:
+                if self._shape[orig_idx] == new_shape[i]:
+                    new_strides[i] = self._strides[orig_idx]
+                else:
+                    assert (
+                        self._shape[orig_idx] == 1
+                    ), "Cannot broadcast non-singleton dimension"
+                    new_strides[i] = 0
+                orig_idx -= 1
+            else:
+                new_strides[i] = 0
+        return NDArray.make(new_shape, tuple(new_strides), self._device, self._handle)
 
     ### Get and set elements
 
@@ -362,9 +385,11 @@ class NDArray:
         )
         assert len(idxs) == self.ndim, "Need indexes equal to number of dimensions"
 
-        ### BEGIN YOUR SOLUTION
-        raise NotImplementedError()
-        ### END YOUR SOLUTION
+        # edited: this needs to account for step which i forgot on init write lol :-(!
+        new_shape = [((s.stop - s.start + s.step - 1) // s.step) for s in idxs]
+        new_stride = [stride * s.step for stride, s in zip(self._strides, idxs)]
+        new_offset = np.sum([stride * s.start for stride, s in zip(self._strides, idxs)])
+        return NDArray.make(new_shape, tuple(new_stride), self._device, self._handle, new_offset)
 
     def __setitem__(self, idxs, other):
         """Set the values of a view into an array, using the same semantics
@@ -398,6 +423,9 @@ class NDArray:
         out = NDArray.make(self.shape, device=self.device)
         if isinstance(other, NDArray):
             assert self.shape == other.shape, "operation needs two equal-sized arrays"
+            # Handle cross-device operations by moving other to self.device
+            if other.device != self.device:
+                other = other.to(self.device)
             ewise_func(self.compact()._handle, other.compact()._handle, out._handle)
         else:
             scalar_func(self.compact()._handle, other, out._handle)
@@ -498,6 +526,10 @@ class NDArray:
         assert self.ndim == 2 and other.ndim == 2
         assert self.shape[1] == other.shape[0]
 
+        # Handle cross-device operations by moving other to self.device
+        if other.device != self.device:
+            other = other.to(self.device)
+
         m, n, p = self.shape[0], self.shape[1], other.shape[1]
 
         # if the matrix is aligned, use tiled matrix multiplication
@@ -572,9 +604,12 @@ class NDArray:
         Flip this ndarray along the specified axes.
         Note: compact() before returning.
         """
-        ### BEGIN YOUR SOLUTION
-        raise NotImplementedError()
-        ### END YOUR SOLUTION
+        nstrides = list(self.strides)
+        noffset = 0
+        for x in axes:
+            noffset += (self.shape[x] - 1) * self.strides[x]
+            nstrides[x] = -self.strides[x]
+        return NDArray.make(self.shape, nstrides, self.device, self._handle, noffset).compact()
 
     def pad(self, axes):
         """
@@ -582,9 +617,13 @@ class NDArray:
         which lists for _all_ axes the left and right padding amount, e.g.,
         axes = ( (0, 0), (1, 1), (0, 0)) pads the middle axis with a 0 on the left and right side.
         """
-        ### BEGIN YOUR SOLUTION
-        raise NotImplementedError()
-        ### END YOUR SOLUTION
+        assert len(axes) == len(self.shape)
+        ndims = tuple(s + l + r for s, (l,r) in zip(self.shape, axes))
+        s = tuple([slice(l, l + n) for (l, _), n in zip(axes, self.shape)])
+        nd = NDArray.make(ndims, device=self.device)
+        nd.fill(0)
+        nd[s] = self
+        return nd
 
 def array(a, dtype="float32", device=None):
     """Convenience methods to match numpy a bit more closely."""

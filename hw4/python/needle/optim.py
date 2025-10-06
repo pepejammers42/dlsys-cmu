@@ -14,6 +14,29 @@ class Optimizer:
         for p in self.params:
             p.grad = None
 
+    def clip_grad_norm(self, max_norm=0.25, eps=1e-6):
+        total_norm_sq = None
+        for p in self.params:
+            if getattr(p, "grad", None) is None:
+                continue
+            g2 = (p.grad * p.grad).sum()
+            total_norm_sq = g2 if total_norm_sq is None else total_norm_sq + g2
+
+        if total_norm_sq is None:
+            return 0.0
+
+        total_norm = total_norm_sq ** 0.5
+        try:
+            total_norm_val = float(total_norm.numpy())
+        except Exception:
+            total_norm_val = float(total_norm)
+
+        if total_norm_val > max_norm:
+            scale = max_norm / (total_norm_val + eps)
+            for p in self.params:
+                if getattr(p, "grad", None) is not None:
+                    p.grad = p.grad * scale
+        return total_norm_val
 
 class SGD(Optimizer):
     def __init__(self, params, lr=0.01, momentum=0.0, weight_decay=0.0):
@@ -24,17 +47,25 @@ class SGD(Optimizer):
         self.weight_decay = weight_decay
 
     def step(self):
-        ### BEGIN YOUR SOLUTION
-        raise NotImplementedError()
-        ### END YOUR SOLUTION
+        for param in self.params:
+            if self.weight_decay > 0:
+                # so this becomes grad of f(theta_t) + weight_decay * theta_t
+                grad_update = param.grad.data + self.weight_decay * param.data
+            else:
+                grad_update = param.grad.data
+            # u_t doesn't exist initially is just 0
+            if param in self.u:
+                self.u[param] = self.momentum * self.u[param] + (1-self.momentum) * grad_update
+            else:
+                self.u[param] = (1-self.momentum) * grad_update
+            param.data = param.data - self.lr * self.u[param]
+        
 
     def clip_grad_norm(self, max_norm=0.25):
         """
         Clips gradient norm of parameters.
         """
-        ### BEGIN YOUR SOLUTION
-        raise NotImplementedError()
-        ### END YOUR SOLUTION
+        return super().clip_grad_norm(max_norm)
 
 
 class Adam(Optimizer):
@@ -55,10 +86,24 @@ class Adam(Optimizer):
         self.weight_decay = weight_decay
         self.t = 0
 
-        self.m = {}
+        self.u = {}
         self.v = {}
 
     def step(self):
-        ### BEGIN YOUR SOLUTION
-        raise NotImplementedError()
-        ### END YOUR SOLUTION
+        self.t += 1
+        for param in self.params:
+            if self.weight_decay > 0:
+                grad_new = param.grad.data + self.weight_decay * param.data
+            else:
+                grad_new = param.grad.data
+            if param in self.u:
+                self.u[param] = self.beta1 * self.u[param] + (1-self.beta1) * grad_new
+            else:
+                self.u[param] = (1-self.beta1) * grad_new
+            if param in self.v:
+                self.v[param] = self.beta2 * self.v[param] + (1-self.beta2) * (grad_new ** 2)
+            else:
+                self.v[param] = (1-self.beta2) * (grad_new ** 2)
+            corrected_u = self.u[param] / (1- self.beta1 ** self.t)
+            corrected_v = self.v[param] / (1-self.beta2 ** self.t)
+            param.data = param.data - self.lr * corrected_u / (corrected_v ** 0.5 + self.eps)
