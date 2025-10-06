@@ -86,3 +86,44 @@ if(CUDA_FOUND)
 
 endif()
 
+
+#####################
+### METAL BACKEND ###
+#####################
+if(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
+  message(STATUS "Building Metal backend")
+
+  # metal-cpp headers live in hw4/metal-cpp
+  set(METAL_CPP_DIR ${CMAKE_CURRENT_SOURCE_DIR}/metal-cpp)
+
+  add_library(ndarray_backend_metal MODULE src/ndarray_backend_metal.cc)
+
+  # Require C++17 for metal-cpp headers
+  target_compile_features(ndarray_backend_metal PRIVATE cxx_std_17)
+
+  target_include_directories(ndarray_backend_metal
+    PRIVATE
+      ${METAL_CPP_DIR}
+  )
+
+  target_link_libraries(ndarray_backend_metal
+    PUBLIC
+      ${LINKER_LIBS}
+      "-framework Metal"
+      "-framework Foundation"
+      "-framework QuartzCore"
+  )
+
+  pybind11_extension(ndarray_backend_metal)
+  pybind11_strip(ndarray_backend_metal)
+
+  # Output .so next to other backends
+  set_target_properties(ndarray_backend_metal
+    PROPERTIES
+      LIBRARY_OUTPUT_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/python/needle/backend_ndarray
+      CXX_VISIBILITY_PRESET "hidden"
+  )
+
+  # Allow undefined symbols resolved at runtime (Python symbols)
+  set_property(TARGET ndarray_backend_metal PROPERTY LINK_OPTIONS -undefined dynamic_lookup)
+endif()

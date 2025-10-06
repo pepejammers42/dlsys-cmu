@@ -5,7 +5,7 @@ typedef float scalar_t;
 
 #define MAX_VEC_SIZE 8
 #define TILE_SIZE 8
-#define BLOCK_DIM 32
+#define BLOCK_DIM 16
 
 // Helper function to calculate memory index from strides
 size_t calc_index(uint index,
@@ -200,15 +200,15 @@ kernel void ewise_tanh(device const scalar_t* a [[buffer(0)]],
 kernel void matmul_tiled(device const scalar_t* a [[buffer(0)]],
                          device const scalar_t* b [[buffer(1)]],
                          device scalar_t* out [[buffer(2)]],
-                         device const uint32_t* M [[buffer(3)]],
-                         device const uint32_t* N [[buffer(4)]],
-                         device const uint32_t* P [[buffer(5)]],
+                         constant uint& M [[buffer(3)]],
+                         constant uint& N [[buffer(4)]],
+                         constant uint& P [[buffer(5)]],
                          uint2 gid [[thread_position_in_grid]],
                          uint2 tid [[thread_position_in_threadgroup]],
                          uint2 bid [[threadgroup_position_in_grid]]) {
-    uint m = *M;
-    uint n = *N;
-    uint p = *P;
+    uint m = M;
+    uint n = N;
+    uint p = P;
 
     uint globalRow = bid.x * BLOCK_DIM + tid.x;
     uint globalCol = bid.y * BLOCK_DIM + tid.y;
@@ -228,7 +228,7 @@ kernel void matmul_tiled(device const scalar_t* a [[buffer(0)]],
 
         threadgroup_barrier(mem_flags::mem_threadgroup);
 
-        for (uint k = 0; k < BLOCK_DIM; ++k) {
+        [[unroll]] for (uint k = 0; k < BLOCK_DIM; ++k) {
             acc += As[tid.x][k] * Bs[k][tid.y];
         }
 
@@ -242,17 +242,17 @@ kernel void matmul_tiled(device const scalar_t* a [[buffer(0)]],
 
 // Optimized matmul with better memory coalescing and larger blocks
 kernel void matmul(device const scalar_t* a [[buffer(0)]],
-                             device const scalar_t* b [[buffer(1)]],
-                             device scalar_t* out [[buffer(2)]],
-                             device const uint32_t* M [[buffer(3)]],
-                             device const uint32_t* N [[buffer(4)]],
-                             device const uint32_t* P [[buffer(5)]],
-                             uint2 gid [[thread_position_in_grid]],
-                             uint2 tid [[thread_position_in_threadgroup]],
-                             uint2 bid [[threadgroup_position_in_grid]]) {
-    uint m = *M;
-    uint n = *N;
-    uint p = *P;
+                   device const scalar_t* b [[buffer(1)]],
+                   device scalar_t* out [[buffer(2)]],
+                   constant uint& M [[buffer(3)]],
+                   constant uint& N [[buffer(4)]],
+                   constant uint& P [[buffer(5)]],
+                   uint2 gid [[thread_position_in_grid]],
+                   uint2 tid [[thread_position_in_threadgroup]],
+                   uint2 bid [[threadgroup_position_in_grid]]) {
+    uint m = M;
+    uint n = N;
+    uint p = P;
 
     // Each thread computes multiple elements for better arithmetic intensity
     const uint TILE_M = 4;
@@ -291,7 +291,7 @@ kernel void matmul(device const scalar_t* a [[buffer(0)]],
         threadgroup_barrier(mem_flags::mem_threadgroup);
 
         // Compute with higher arithmetic intensity
-        for (uint k = 0; k < BLOCK_DIM; ++k) {
+        [[unroll]] for (uint k = 0; k < BLOCK_DIM; ++k) {
             for (uint i = 0; i < TILE_M; i++) {
                 for (uint j = 0; j < TILE_N; j++) {
                     acc[i][j] += As[tid.x * TILE_M + i][k] * Bs[k][tid.y * TILE_N + j];

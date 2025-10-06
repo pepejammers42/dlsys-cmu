@@ -40,8 +40,7 @@ MTL::Device *device = MTL::CreateSystemDefaultDevice();
 
 static MTL::CommandQueue* g_queue = nullptr;
 
-// Match ops.metal
-#define BLOCK_DIM 32
+#define BLOCK_DIM 16
 
 struct MetalArray {
     MetalArray(const size_t size){
